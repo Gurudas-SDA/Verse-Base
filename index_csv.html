@@ -1,0 +1,104 @@
+<!--
+  Spreadsheet Explorer (CSV version)
+  ----------------------------------
+  Šī versija nelieto opensheet, bet gan vienkāršo CSV eksportu, tāpēc darbojas arī lielām/kompleksām lapām.
+
+  KĀ KONFIGURĒT
+  1. SHEET_ID  – virkni vari nokopēt no Google Sheet URL pēc “/d/”.
+  2. GID –  cipars pēc “gid=” tabas URLā (piem., 1273789187). Ja maini cilni, mainās arī GID.
+  3. Augšupielādē failu GitHub Pages vai Netlify tāpat kā iepriekš.
+
+  Piezīme: Google Sheet jābūt “Anyone with the link → Viewer” **un** File → Publish to the web (Sheet vai Entire doc).
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Spreadsheet Explorer</title>
+
+  <!-- DataTables & jQuery -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.11/css/jquery.dataTables.min.css" />
+  <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.11/js/jquery.dataTables.min.js"></script>
+
+  <!-- PapaParse for CSV -->
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; }
+    table.dataTable thead th { position: sticky; top: 0; background: #f9fafb; }
+    h1 { font-size: 1.75rem; margin-bottom: 1rem; }
+    p { margin-bottom: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Spreadsheet Explorer</h1>
+  <p>Use the dropdowns in each column header to filter the data. Hold <kbd>Ctrl</kbd> / <kbd>Cmd</kbd> to select multiple values at once.</p>
+
+  <table id="sheetTable" class="display" style="width:100%">
+    <thead id="tableHead"></thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    // === CONFIGURATION ===
+    const SHEET_ID = "1bvwOIe08wLicl7LuPrx9c7Dx1z8brltg";
+    const GID = "1273789187"; // sheet tab gid
+    const CSV_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
+
+    // === FETCH CSV ===
+    Papa.parse(CSV_URL, {
+      download: true,
+      header: true,
+      dynamicTyping: true,
+      complete: function (results) {
+        buildTable(results.data.filter(row => Object.values(row).some(v => v !== "")));
+      },
+      error: function(err) {
+        console.error("CSV load error:", err);
+      }
+    });
+
+    function buildTable(data) {
+      if (!data.length) { console.warn("No rows"); return; }
+
+      const keys = Object.keys(data[0]);
+      const columns = keys.map(k => ({ title: k, data: k }));
+
+      // Build thead
+      const thead = document.getElementById("tableHead");
+      const headerRow = document.createElement("tr");
+      keys.forEach(k => {
+        const th = document.createElement("th");
+        th.textContent = k;
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+
+      const table = $("#sheetTable").DataTable({
+        data,
+        columns,
+        pageLength: 25,
+        initComplete: function () {
+          this.api().columns().every(function () {
+            const column = this;
+            const select = $("<select><option value=""></option></select>")
+              .appendTo($(column.header()).empty())
+              .on("change", function () {
+                const val = $.fn.dataTable.util.escapeRegex($(this).val());
+                column.search(val ? '^' + val + '$' : '', true, false).draw();
+              });
+
+            column.data().unique().sort().each(function (d) {
+              if (d !== null && d !== undefined && d !== "") {
+                select.append(`<option value="${d}">${d}</option>`);
+              }
+            });
+          });
+        }
+      });
+    }
+  </script>
+</body>
+</html>
